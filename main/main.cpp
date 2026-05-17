@@ -42,6 +42,7 @@ extern "C" void app_main(void)
     GetMooncake().installApp(std::make_unique<AppLoraChat>());
     GetMooncake().installApp(std::make_unique<AppGPS>());
     GetMooncake().installApp(std::make_unique<AppDummy>());
+    GetMooncake().installApp(std::make_unique<AppLiveData>());
 
     // Main loop
     audio::set_keyboard_sfx_enable(true);
