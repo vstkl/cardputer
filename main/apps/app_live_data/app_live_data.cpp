@@ -11,17 +11,54 @@
 #include <assets.h>
 #include <hal.h>
 #include <cstdlib>
-
 using namespace mooncake;
 
 // ---------------------------------------------------------------------------
-// Label strings for the four data channels
+// Screen constants — Cardputer ADV internal display
+// ---------------------------------------------------------------------------
+static constexpr int SCREEN_W = 240;
+static constexpr int SCREEN_H = 135;
+
+// FONT_REPL at textSize 1 → ~8 × 16 px per character cell
+static constexpr int LINE_H = 16;
+
+// ---------------------------------------------------------------------------
+// Layout — derived purely from SCREEN_H and LINE_H so nothing overflows
+//
+//   y=  2  "Live Data"  (title)
+//   y= 20  ── separator ──────────────────────────────
+//   y= 26  Chan A        [label]       1234  [value]
+//   y= 46  Chan B                      5678
+//   y= 66  Chan C                      9012
+//   y= 86  Chan D                      3456
+//   y=106  ── separator ──────────────────────────────
+//   y=110  HOME  exit  (hint)
+// ---------------------------------------------------------------------------
+static constexpr int Y_TITLE     = 2;
+static constexpr int Y_SEP_TOP   = 20;
+static constexpr int Y_ROW_START = 26;
+static constexpr int ROW_STRIDE  = 20;  // 4 rows × 20 = 80 px; 26+80=106 < 135 ✓
+static constexpr int Y_SEP_BOT   = 106;
+static constexpr int Y_HINT      = 110;
+
+static constexpr int X_LABEL = 6;
+static constexpr int X_VALUE = 160;  // value starts ~2/3 across the 240px width
+
+// Colours matching the IMU app's palette (0xRRGGBB hex literals)
+static constexpr uint32_t COL_TITLE = 0xFFFFFF;  // white
+static constexpr uint32_t COL_SEP   = 0x404040;  // dark grey
+static constexpr uint32_t COL_LABEL = 0x8FC8AA;  // muted green (same as IMU accel)
+static constexpr uint32_t COL_VALUE = 0x88AED9;  // muted blue  (same as IMU gyro)
+static constexpr uint32_t COL_HINT  = 0x404040;  // dark grey
+
+// ---------------------------------------------------------------------------
+// Label strings
 // ---------------------------------------------------------------------------
 const char* AppLiveData::_labels[4] = {
-    "Channel A",
-    "Channel B",
-    "Channel C",
-    "Channel D",
+    "Chan A",
+    "Chan B",
+    "Chan C",
+    "Chan D",
 };
 
 // ---------------------------------------------------------------------------
@@ -29,56 +66,38 @@ const char* AppLiveData::_labels[4] = {
 // ---------------------------------------------------------------------------
 AppLiveData::AppLiveData()
 {
-    setAppInfo().name = "Live Data a";
-    // setAppInfo().userData = new AppIcon_t(icon_big..., icon_small...);
+    setAppInfo().name = "Live Data";
+    // setAppInfo().userData = new AppIcon_t(image_data_live_data_big, image_data_live_data_small);
 }
 
 // ---------------------------------------------------------------------------
-// onOpen — called once when the user launches the app
+// onOpen
 // ---------------------------------------------------------------------------
 void AppLiveData::onOpen()
 {
     mclog::tagInfo(getAppInfo().name, "on open");
 
-    // Canvas setup — fixed layout, no scroll
     GetHAL().canvas.setBaseColor(THEME_COLOR_BG);
-    GetHAL().canvas.setTextScroll(false);
     GetHAL().canvas.setFont(FONT_REPL);
     GetHAL().canvas.setTextSize(1);
 
-    // Seed and populate initial values so the first frame is not all zeros
-    _updateValues();
-    _drawAll();
-
-    // Reset the 1-second ticker
+    // Populate values immediately — no blank first frame
+    _update_values();
+    _render();
     _time_count = GetHAL().millis();
-
-    // Key handler — any keypress closes the app (same feel as other apps)
-    _handle_key_event_slot_id = GetHAL().keyboard.onKeyEvent.connect([this](const Keyboard::KeyEvent_t& keyEvent) {
-        if (keyEvent.isModifier || keyEvent.state == false) {
-            return;
-        }
-        // ESC / backtick on Cardputer layout = close
-        if (keyEvent.keyCode == KEY_ESC || keyEvent.keyCode == '`') {
-            audio::play_random_tone();
-            close();
-        }
-    });
 }
 
 // ---------------------------------------------------------------------------
-// onRunning — hot loop while the app is visible
+// onRunning
 // ---------------------------------------------------------------------------
 void AppLiveData::onRunning()
 {
-    // Refresh data every 1000 ms
     if (GetHAL().millis() - _time_count >= 1000) {
-        _updateValues();
-        _drawAll();
+        _update_values();
+        _render();
         _time_count = GetHAL().millis();
     }
 
-    // Home button closes the app
     if (GetHAL().homeButton.wasClicked()) {
         audio::play_random_tone();
         close();
@@ -86,7 +105,7 @@ void AppLiveData::onRunning()
 }
 
 // ---------------------------------------------------------------------------
-// onClose — called when the app exits
+// onClose
 // ---------------------------------------------------------------------------
 void AppLiveData::onClose()
 {
@@ -99,9 +118,9 @@ void AppLiveData::onClose()
 }
 
 // ---------------------------------------------------------------------------
-// _updateValues — fill _values[] with fresh random numbers (0–9999)
+// _update_values — randomise all four channels
 // ---------------------------------------------------------------------------
-void AppLiveData::_updateValues()
+void AppLiveData::_update_values()
 {
     for (int i = 0; i < 4; i++) {
         _values[i] = rand() % 10000;
@@ -109,66 +128,38 @@ void AppLiveData::_updateValues()
 }
 
 // ---------------------------------------------------------------------------
-// _drawAll — clear the canvas and paint the full data panel
-//
-// Screen layout (320 × 240, FONT_REPL size 1 → ~8×16 px per char):
-//
-//   y=  4  ┌─ title bar ─────────────────────────────┐
-//   y= 28  │  Channel A           1234                │
-//   y= 68  │  Channel B           5678                │
-//   y=108  │  Channel C           9012                │
-//   y=148  │  Channel D           3456                │
-//   y=200  │  [HOME / ESC to exit]                    │
-//          └──────────────────────────────────────────┘
+// _render — mirrors the IMU app's render pattern exactly:
+//           fillScreen → drawString calls → pushCanvas
 // ---------------------------------------------------------------------------
-void AppLiveData::_drawAll()
+void AppLiveData::_render()
 {
-    auto& cv = GetHAL().canvas;
+    GetHAL().canvas.fillScreen(THEME_COLOR_BG);
 
-    // --- Background ---
-    cv.fillScreen(THEME_COLOR_BG);
+    // Title
+    GetHAL().canvas.setTextColor(COL_TITLE);
+    GetHAL().canvas.drawString("Live Data", X_LABEL, Y_TITLE);
 
-    // --- Title bar ---
-    cv.setTextColor(TFT_WHITE, THEME_COLOR_BG);
-    cv.setTextSize(2);
-    cv.setCursor(8, 4);
-    cv.print("Live Data");
+    // Separator lines
+    GetHAL().canvas.fillRect(0, Y_SEP_TOP, SCREEN_W, 1, COL_SEP);
+    GetHAL().canvas.fillRect(0, Y_SEP_BOT, SCREEN_W, 1, COL_SEP);
 
-    // Divider line under title
-    cv.drawFastHLine(0, 26, 320, TFT_DARKGREY);
-
-    // --- Four data rows ---
-    cv.setTextSize(1);
-
-    const int row_height  = 40;
-    const int first_row_y = 36;
-    const int label_x     = 8;
-    const int value_x     = 220;  // right-aligned area start
-
+    // Four data rows
     for (int i = 0; i < 4; i++) {
-        int y = first_row_y + i * row_height;
+        int y = Y_ROW_START + i * ROW_STRIDE;
 
-        // Row separator (skip the first one — title line already there)
-        if (i > 0) {
-            cv.drawFastHLine(0, y - 4, 320, TFT_DARKGREY);
-        }
+        // Label
+        GetHAL().canvas.setTextColor(COL_LABEL);
+        GetHAL().canvas.drawString(_labels[i], X_LABEL, y);
 
-        // Label in grey
-        cv.setTextColor(TFT_LIGHTGREY, THEME_COLOR_BG);
-        cv.setCursor(label_x, y + 4);
-        cv.print(_labels[i]);
-
-        // Value in bright green, right-aligned at value_x
-        cv.setTextColor(TFT_GREEN, THEME_COLOR_BG);
-        cv.setCursor(value_x, y + 4);
-        cv.printf("%5d", _values[i]);
+        // Value — right-aligned block: format to fixed width so column is stable
+        GetHAL().canvas.setTextColor(COL_VALUE);
+        _str_buffer = fmt::format("{:>5}", _values[i]);
+        GetHAL().canvas.drawString(_str_buffer.c_str(), X_VALUE, y);
     }
 
-    // --- Footer hint ---
-    cv.drawFastHLine(0, 196, 320, TFT_DARKGREY);
-    cv.setTextColor(TFT_DARKGREY, THEME_COLOR_BG);
-    cv.setCursor(8, 200);
-    cv.print("HOME / ESC  exit");
+    // Hint
+    GetHAL().canvas.setTextColor(COL_HINT);
+    GetHAL().canvas.drawString("HOME  exit", X_LABEL, Y_HINT);
 
     GetHAL().pushCanvas();
 }
