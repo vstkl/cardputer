@@ -11,6 +11,7 @@
 #include <assets.h>
 #include <hal.h>
 #include <cstdlib>
+
 using namespace mooncake;
 
 // ---------------------------------------------------------------------------
@@ -28,7 +29,7 @@ const char* AppLiveData::_labels[4] = {
 // ---------------------------------------------------------------------------
 AppLiveData::AppLiveData()
 {
-    setAppInfo().name = "Live Data";
+    setAppInfo().name = "Live Data a";
     // setAppInfo().userData = new AppIcon_t(icon_big..., icon_small...);
 }
 
