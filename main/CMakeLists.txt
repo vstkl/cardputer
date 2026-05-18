@@ -24,5 +24,4 @@ file(GLOB EXTERN_FILES assets/*)
 idf_component_register(SRCS "main.cpp" ${MY_SRCS}
                     INCLUDE_DIRS ${MY_INCLUDE_DIRS} ${PIKA_PYTHON_INCS}
                     EMBED_FILES ${EXTERN_FILES}
-                    REQUIRES sgp30
 )
