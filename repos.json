@@ -27,6 +27,6 @@
   {
     "url": "https://github.com/vstkl/esp-idf-sgp30.git",
     "path": "components/sgp30",
-    "branch": "v0.1.0"
+    "branch": "v0.1.1"
   }
 ]
