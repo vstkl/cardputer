@@ -36,6 +36,10 @@ void Hal::init()
     keyboard_init();
     setting_init();
     spi_init();
+
+    if (sgp30.begin(HAL_PIN_PORT_A_SDA, HAL_PIN_PORT_A_SCL, I2C_NUM_1) != ESP_OK) {
+        mclog::tagWarn(_tag, "SGP30 not found — sensor absent or not connected");
+    }
 }
 
 void Hal::update()

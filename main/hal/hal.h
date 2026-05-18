@@ -8,6 +8,7 @@
 #include "cap_lora868/cap_lora868.h"
 #include "utils/settings/settings.h"
 #include <M5Unified.hpp>
+#include <sgp30.hpp>
 #include <M5GFX.h>
 #include <memory>
 #include <cstdint>
@@ -37,6 +38,9 @@ public:
     LGFX_Sprite canvas            = LGFX_Sprite(&M5.Display);
     LGFX_Sprite canvasSystemBar   = LGFX_Sprite(&M5.Display);
     LGFX_Sprite canvasKeyboardBar = LGFX_Sprite(&M5.Display);
+
+    /** @VSTKL: importing sgp30 driver */
+    SGP30 sgp30;
 
     inline void pushCanvasSystemBar()
     {

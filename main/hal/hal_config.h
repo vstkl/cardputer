@@ -17,3 +17,5 @@
 #define HAL_PIN_LORA_RST_GPIO  3
 #define HAL_PIN_LORA_BUSY_GPIO 6
 #define HAL_PIN_LORA_DIO1_GPIO 4
+#define HAL_PIN_PORT_A_SDA     1
+#define HAL_PIN_PORT_A_SCL     2
