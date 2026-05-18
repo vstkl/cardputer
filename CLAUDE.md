@@ -74,9 +74,11 @@ Apps live under `main/apps/app_<name>/`. To add a new app:
 
 The app list in `main.cpp` is the install order (Launcher must be first).
 
-### Custom component (`my_components/sgp30/`)
+### SGP30 driver (`components/sgp30`)
 
-The SGP30 driver uses the **new ESP-IDF 5.x I2C master API** (`driver/i2c_master.h`), not the legacy `driver/i2c.h`. It is a separate IDF component registered in `my_components/sgp30/CMakeLists.txt` and required by the main component. The `Hal` class holds an `SGP30 sgp30` member; call `sgp30.begin(SDA, SCL, I2C_NUM_1)` then `sgp30.update()` at 1 Hz. The sensor needs ~15 s warm-up before `getData().valid` is true.
+Vendored via `repos.json` from `github.com/vstkl/esp-idf-sgp30`. Edit the driver there, bump the `branch` pin in `repos.json`, and re-run `fetch_repos.py`.
+
+Uses the **new ESP-IDF 5.x I2C master API** (`driver/i2c_master.h`), not the legacy `driver/i2c.h`. The `Hal` class holds an `SGP30 sgp30` member; call `sgp30.begin(SDA, SCL, I2C_NUM_1)` then `sgp30.update()` at 1 Hz. The sensor needs ~15 s warm-up before `getData().valid` is true.
 
 ### Vendored components (`components/`)
 
