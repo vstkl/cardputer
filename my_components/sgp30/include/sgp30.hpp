@@ -169,6 +169,14 @@ public:
     esp_err_t begin(int sda_pin, int scl_pin, int i2c_port = I2C_NUM_1);
 
     /**
+     * @brief Initialise using an existing I²C bus handle (e.g. from M5.In_I2C).
+     *
+     * Use this when another driver already owns the bus. The SGP30 device is
+     * added to that bus; it will NOT be deleted on end().
+     */
+    esp_err_t begin(i2c_master_bus_handle_t existing_bus);
+
+    /**
      * @brief Release I²C resources and put the sensor back to sleep.
      *
      * Safe to call even if begin() was never called or failed.
