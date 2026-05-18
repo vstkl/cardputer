@@ -10,7 +10,6 @@
 #include <mooncake_log.h>
 #include <assets.h>
 #include <hal.h>
-#include <cstdlib>
 using namespace mooncake;
 
 // ---------------------------------------------------------------------------
@@ -52,13 +51,13 @@ static constexpr uint32_t COL_VALUE = 0x88AED9;  // muted blue  (same as IMU gyr
 static constexpr uint32_t COL_HINT  = 0x404040;  // dark grey
 
 // ---------------------------------------------------------------------------
-// Label strings
+// Label strings — SGP30 signal names with units embedded
 // ---------------------------------------------------------------------------
 const char* AppLiveData::_labels[4] = {
-    "Chan A",
-    "Chan B",
-    "Chan C",
-    "Chan D",
+    "eCO2 ppm",   // Equivalent CO2, derived from H2/EtOH  (400-60000 ppm)
+    "TVOC ppb",   // Total Volatile Organic Compounds       (0-60000 ppb)
+    "H2 raw",     // Raw H2 signal     (~13000 in clean air)
+    "EtOH raw",   // Raw Ethanol signal (~18000 in clean air)
 };
 
 // ---------------------------------------------------------------------------
@@ -81,7 +80,11 @@ void AppLiveData::onOpen()
     GetHAL().canvas.setFont(FONT_REPL);
     GetHAL().canvas.setTextSize(1);
 
-    // Populate values immediately — no blank first frame
+    // SGP30 on PORT.A: SDA=GPIO2, SCL=GPIO1, uses I2C_NUM_1
+    _sgp30_ok = (_sgp30.begin(2, 1) == ESP_OK);
+    if (!_sgp30_ok)
+        mclog::tagWarn(getAppInfo().name, "SGP30 not found on PORT.A");
+
     _update_values();
     _render();
     _time_count = GetHAL().millis();
@@ -111,6 +114,8 @@ void AppLiveData::onClose()
 {
     mclog::tagInfo(getAppInfo().name, "on close");
 
+    _sgp30.end();
+
     if (_handle_key_event_slot_id >= 0) {
         GetHAL().keyboard.onKeyEvent.disconnect(_handle_key_event_slot_id);
         _handle_key_event_slot_id = -1;
@@ -118,43 +123,55 @@ void AppLiveData::onClose()
 }
 
 // ---------------------------------------------------------------------------
-// _update_values — randomise all four channels
+// _update_values — poll the SGP30 sensor (must be called at ~1 Hz)
 // ---------------------------------------------------------------------------
 void AppLiveData::_update_values()
 {
-    for (int i = 0; i < 4; i++) {
-        _values[i] = rand() % 10000;
-    }
+    if (!_sgp30_ok) return;
+    _sgp30.update();
+    _data = _sgp30.getData();
 }
 
 // ---------------------------------------------------------------------------
-// _render — mirrors the IMU app's render pattern exactly:
-//           fillScreen → drawString calls → pushCanvas
+// _render — fillScreen → drawString calls → pushCanvas
 // ---------------------------------------------------------------------------
 void AppLiveData::_render()
 {
     GetHAL().canvas.fillScreen(THEME_COLOR_BG);
 
-    // Title
+    // Title — appends state hint when sensor is absent or still warming up
     GetHAL().canvas.setTextColor(COL_TITLE);
-    GetHAL().canvas.drawString("Live Data", X_LABEL, Y_TITLE);
+    if (!_sgp30_ok)
+        GetHAL().canvas.drawString("Live Data - no sensor", X_LABEL, Y_TITLE);
+    else if (!_data.valid)
+        GetHAL().canvas.drawString("Live Data (init)", X_LABEL, Y_TITLE);
+    else
+        GetHAL().canvas.drawString("Live Data", X_LABEL, Y_TITLE);
 
     // Separator lines
     GetHAL().canvas.fillRect(0, Y_SEP_TOP, SCREEN_W, 1, COL_SEP);
     GetHAL().canvas.fillRect(0, Y_SEP_BOT, SCREEN_W, 1, COL_SEP);
 
-    // Four data rows
+    const uint16_t vals[4] = {_data.eco2, _data.tvoc, _data.raw_h2, _data.raw_ethanol};
+
     for (int i = 0; i < 4; i++) {
         int y = Y_ROW_START + i * ROW_STRIDE;
 
-        // Label
+        // Label (includes unit for eCO2/TVOC rows)
         GetHAL().canvas.setTextColor(COL_LABEL);
         GetHAL().canvas.drawString(_labels[i], X_LABEL, y);
 
-        // Value — right-aligned block: format to fixed width so column is stable
-        GetHAL().canvas.setTextColor(COL_VALUE);
-        _str_buffer = fmt::format("{:>5}", _values[i]);
-        GetHAL().canvas.drawString(_str_buffer.c_str(), X_VALUE, y);
+        // Value — "---" when no sensor; dimmed during the 15 s warm-up for
+        // eCO2 and TVOC (which return placeholder 400/0 until valid==true)
+        if (!_sgp30_ok) {
+            GetHAL().canvas.setTextColor(COL_SEP);
+            GetHAL().canvas.drawString("  ---", X_VALUE, y);
+        } else {
+            uint32_t col = (!_data.valid && i < 2) ? (uint32_t)0x506070 : COL_VALUE;
+            GetHAL().canvas.setTextColor(col);
+            _str_buffer = fmt::format("{:>5}", vals[i]);
+            GetHAL().canvas.drawString(_str_buffer.c_str(), X_VALUE, y);
+        }
     }
 
     // Hint
