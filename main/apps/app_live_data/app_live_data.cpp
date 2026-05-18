@@ -54,10 +54,10 @@ static constexpr uint32_t COL_HINT  = 0x404040;  // dark grey
 // Label strings — SGP30 signal names with units embedded
 // ---------------------------------------------------------------------------
 const char* AppLiveData::_labels[4] = {
-    "eCO2 ppm",   // Equivalent CO2, derived from H2/EtOH  (400-60000 ppm)
-    "TVOC ppb",   // Total Volatile Organic Compounds       (0-60000 ppb)
-    "H2 raw",     // Raw H2 signal     (~13000 in clean air)
-    "EtOH raw",   // Raw Ethanol signal (~18000 in clean air)
+    "eCO2 ppm",  // Equivalent CO2, derived from H2/EtOH  (400-60000 ppm)
+    "TVOC ppb",  // Total Volatile Organic Compounds       (0-60000 ppb)
+    "H2 raw",    // Raw H2 signal     (~13000 in clean air)
+    "EtOH raw",  // Raw Ethanol signal (~18000 in clean air)
 };
 
 // ---------------------------------------------------------------------------
@@ -81,9 +81,9 @@ void AppLiveData::onOpen()
     GetHAL().canvas.setTextSize(1);
 
     // SGP30 on PORT.A: SDA=GPIO2, SCL=GPIO1, uses I2C_NUM_1
+    _sgp30.end();  // no-op if not initialised, ensures clean state
     _sgp30_ok = (_sgp30.begin(2, 1) == ESP_OK);
-    if (!_sgp30_ok)
-        mclog::tagWarn(getAppInfo().name, "SGP30 not found on PORT.A");
+    if (!_sgp30_ok) mclog::tagWarn(getAppInfo().name, "SGP30 not found on PORT.A");
 
     _update_values();
     _render();
@@ -113,13 +113,6 @@ void AppLiveData::onRunning()
 void AppLiveData::onClose()
 {
     mclog::tagInfo(getAppInfo().name, "on close");
-
-    _sgp30.end();
-
-    if (_handle_key_event_slot_id >= 0) {
-        GetHAL().keyboard.onKeyEvent.disconnect(_handle_key_event_slot_id);
-        _handle_key_event_slot_id = -1;
-    }
 }
 
 // ---------------------------------------------------------------------------
