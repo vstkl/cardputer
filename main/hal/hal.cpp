@@ -363,8 +363,8 @@ void Hal::start_sntp()
         return;
     }
 
-    // Set timezone to UTC+8
-    setenv("TZ", "CST-8", 1);
+    // Default to UTC; ntp_task overrides this with the TZ from wifi.txt.
+    setenv("TZ", "UTC0", 1);
     tzset();
 
     esp_sntp_setoperatingmode(SNTP_OPMODE_POLL);

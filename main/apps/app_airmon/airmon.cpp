@@ -12,17 +12,18 @@
 static const char* TAG = "airmon";
 
 // ─── Global sync primitives (definitions) ─────────────────────────────────────
-SemaphoreHandle_t  g_data_mutex  = nullptr;
-QueueHandle_t      g_log_queue   = nullptr;
-QueueHandle_t      g_audio_queue = nullptr;
-EventGroupHandle_t g_events      = nullptr;
-SensorSnapshot     g_snapshot    = {};
+SemaphoreHandle_t g_data_mutex = nullptr;
+QueueHandle_t g_log_queue      = nullptr;
+QueueHandle_t g_audio_queue    = nullptr;
+EventGroupHandle_t g_events    = nullptr;
+SensorSnapshot g_snapshot      = {};
 
 // Forward-declare task entry points (each defined in its own TU).
 void sensor_task(void*);
 void display_task(void*);
 void logger_task(void*);
 void audio_task(void*);
+void ntp_task(void*);
 
 // ─── Power management ─────────────────────────────────────────────────────────
 // Scale from 240 → 160 MHz max and enable automatic light sleep.
@@ -38,7 +39,7 @@ static void pm_init()
     esp_pm_config_t cfg = {
         .max_freq_mhz       = 160,
         .min_freq_mhz       = 80,
-        .light_sleep_enable = true,
+        .light_sleep_enable = false,
     };
     esp_err_t err = esp_pm_configure(&cfg);
     if (err != ESP_OK) {
@@ -55,7 +56,7 @@ void airmon_start()
 
     g_data_mutex  = xSemaphoreCreateMutex();
     g_log_queue   = xQueueCreate(32, sizeof(SensorSnapshot));
-    g_audio_queue = xQueueCreate(4,  sizeof(AudioCmd));
+    g_audio_queue = xQueueCreate(4, sizeof(AudioCmd));
     g_events      = xEventGroupCreate();
 
     configASSERT(g_data_mutex);
@@ -65,8 +66,9 @@ void airmon_start()
 
     // sensor + logger + audio share APP_CPU (core 1) — all sleep most of the time.
     // display owns PRO_CPU (core 0) and is the sole caller of M5.update() / Speaker.
-    xTaskCreatePinnedToCore(sensor_task,  "airmon_sen",  SENSOR_STACK,  nullptr, SENSOR_PRI,  nullptr, 1);
-    xTaskCreatePinnedToCore(logger_task,  "airmon_log",  LOGGER_STACK,  nullptr, LOGGER_PRI,  nullptr, 1);
-    xTaskCreatePinnedToCore(audio_task,   "airmon_aud",  AUDIO_STACK,   nullptr, AUDIO_PRI,   nullptr, 1);
+    xTaskCreatePinnedToCore(sensor_task, "airmon_sen", SENSOR_STACK, nullptr, SENSOR_PRI, nullptr, 1);
+    xTaskCreatePinnedToCore(logger_task, "airmon_log", LOGGER_STACK, nullptr, LOGGER_PRI, nullptr, 1);
+    xTaskCreatePinnedToCore(audio_task, "airmon_aud", AUDIO_STACK, nullptr, AUDIO_PRI, nullptr, 1);
+    xTaskCreatePinnedToCore(ntp_task, "airmon_ntp", NTP_STACK, nullptr, 1, nullptr, 1);
     xTaskCreatePinnedToCore(display_task, "airmon_disp", DISPLAY_STACK, nullptr, DISPLAY_PRI, nullptr, 0);
 }

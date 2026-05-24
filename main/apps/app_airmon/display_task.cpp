@@ -12,6 +12,7 @@
 #include <esp_timer.h>
 #include <mooncake_log.h>
 #include <cstdio>
+#include <ctime>
 #include <algorithm>
 
 static const char* TAG = "display";
@@ -104,9 +105,24 @@ static void draw_frame(LGFX_Sprite& c, const GraphBuf& g,
     c.setFont(FONT_REPL);
     c.setTextSize(1);
 
-    // ── Title ──────────────────────────────────────────────────────────────
-    c.setTextColor(COL_TEXT);
-    c.drawString("AirMon", 4, 0);
+    // ── Clock — "HH:MM" when NTP synced, "--:--" otherwise ────────────────
+    // "AirMon" label lives in the system bar (left strip); title uses this
+    // space for the live clock instead.
+    {
+        char tbuf[6];
+        time_t now;
+        time(&now);
+        if (now > 1000000000LL) {
+            struct tm ti;
+            localtime_r(&now, &ti);
+            snprintf(tbuf, sizeof(tbuf), "%02d:%02d", ti.tm_hour, ti.tm_min);
+            c.setTextColor(COL_TEXT);
+        } else {
+            strncpy(tbuf, "--:--", sizeof(tbuf));
+            c.setTextColor(COL_DIM);
+        }
+        c.drawString(tbuf, 4, 0);
+    }
 
     // ── Battery percentage ─────────────────────────────────────────────────
     {

@@ -17,6 +17,7 @@ static constexpr uint32_t    SENSOR_STACK  = 6144;
 static constexpr uint32_t    DISPLAY_STACK = 12288;
 static constexpr uint32_t    LOGGER_STACK  = 6144;
 static constexpr uint32_t    AUDIO_STACK   = 4096;
+static constexpr uint32_t    NTP_STACK     = 4096;
 static constexpr UBaseType_t SENSOR_PRI    = 5;   // must not miss 1 Hz SGP30 window
 static constexpr UBaseType_t DISPLAY_PRI   = 3;
 static constexpr UBaseType_t LOGGER_PRI    = 2;
@@ -70,6 +71,7 @@ extern SensorSnapshot     g_snapshot;
 #define EV_CRIT_CO2      (EventBits_t)(BIT4)  // eCO2 ≥ ECO2_CRIT
 #define EV_WARN_TVOC     (EventBits_t)(BIT5)  // TVOC ≥ TVOC_WARN
 #define EV_CRIT_TVOC     (EventBits_t)(BIT6)  // TVOC ≥ TVOC_CRIT
+#define EV_TIME_SYNCED   (EventBits_t)(BIT7)  // NTP sync completed, system clock is valid
 
 // ─── Entry point ───────────────────────────────────────────────────────────────
 void airmon_start();

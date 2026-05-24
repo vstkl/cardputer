@@ -11,11 +11,11 @@
 #include <esp_timer.h>
 #include <ctime>
 #include <cstdio>
+#include <unistd.h>
 
 static const char* TAG = "logger";
 
 static constexpr const char* LOG_PATH       = "/sdcard/airmon.csv";
-static constexpr uint32_t    FSYNC_INTERVAL = 10;   // fsync every N rows
 static constexpr uint32_t    SD_RETRY_MS    = 5000; // probe interval when SD absent
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -56,15 +56,12 @@ void logger_task(void*)
         vTaskDelay(pdMS_TO_TICKS(SD_RETRY_MS));
     }
 
-    FILE*    fp     = open_log();
-    uint32_t n_rows = 0;
+    FILE* fp = open_log();
 
     for (;;) {
         SensorSnapshot entry;
 
         if (xQueueReceive(g_log_queue, &entry, pdMS_TO_TICKS(SD_RETRY_MS)) != pdTRUE) {
-            // Timeout: flush and verify SD is still alive.
-            if (fp) fflush(fp);
             continue;
         }
 
@@ -112,14 +109,13 @@ void logger_task(void*)
         if (r < 0) {
             mclog::tagError(TAG, "write error — closing log");
             fclose(fp);
-            fp     = nullptr;
-            n_rows = 0;
+            fp = nullptr;
             continue;
         }
 
-        // ── Periodic fsync ────────────────────────────────────────────────────
-        if (++n_rows % FSYNC_INTERVAL == 0) {
-            fflush(fp);
-        }
+        // Flush libc buffer then fsync to SD hardware every write (1 Hz),
+        // so the file is immediately readable on any other computer.
+        fflush(fp);
+        fsync(fileno(fp));
     }
 }
