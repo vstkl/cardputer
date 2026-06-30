@@ -42,3 +42,4 @@ This project references the following open-source libraries and resources:
 - https://github.com/78/xiaozhi-esp32
 - https://github.com/Forairaaaaa/mooncake
 - https://github.com/Forairaaaaa/smooth_ui_toolkit
+- https://github.com/vstkl/esp-idf-sgp30
